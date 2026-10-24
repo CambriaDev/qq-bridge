@@ -39,7 +39,7 @@ test('每代内置预设都满足自己那一代的安全不变量', () => {
 test('一代与二代的硬性不变量清单确实不同（防止又合并成一份）', () => {
   assert.notDeepEqual(presetBlockingSubstrings('v1'), presetBlockingSubstrings('v2'));
   // 二代的工具面不变量不应该出现在一代清单里
-  assert.ok(!presetBlockingSubstrings('v1').includes('你没有本地工具'));
+  assert.ok(!presetBlockingSubstrings('v1').includes('你拥有 DSH 本机工具'));
 });
 
 test('真实预设能定位到 persona 的 prefix 块', () => {

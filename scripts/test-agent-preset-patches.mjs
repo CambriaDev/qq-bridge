@@ -5,7 +5,7 @@
 //      config 里带 id/name/description/order/plugins；
 //   3. 守卫行只能用「从 profile 目录可解析」的引用方式（裸说明符），
 //      不允许任何相对/绝对路径子行名 —— 那正是 0.1.7 下静默装不上的坑；
-//   4. 安全边界（qq-tool-restrict 的 fail-closed 白名单）一份实现、两个 preset 共用。
+//   4. qq-chat 保留 fail-closed 守卫；qq-chat-v2 显式不挂守卫，使用完整 DSH 工具面。
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -62,16 +62,22 @@ for (const name of PRESETS) {
     `${name}: persona.prefix 逐字一致（${srcPersona?.config?.prefix?.length ?? 0} 字符）`);
 }
 
-console.log('## 3. 守卫行引用方式：只用「profile 目录可解析」的裸说明符');
+console.log('## 3. 工具守卫按 preset 隔离：仅一代聊天使用');
 for (const name of PRESETS) {
   const row = load(patchFileFor(name))[0].insert[0];
   const guard = row.config.plugins.find((r) => r.id === 'qq-tool-restrict');
-  ok(guard !== undefined, `${name}: 有 qq-tool-restrict 守卫行`);
-  ok(guard?.name === GUARD_SPECIFIER, `${name}: 守卫行 name = ${GUARD_SPECIFIER}`);
+  if (name === 'qq-chat') {
+    ok(guard !== undefined, `${name}: 有 qq-tool-restrict 守卫行`);
+    ok(guard?.name === GUARD_SPECIFIER, `${name}: 守卫行 name = ${GUARD_SPECIFIER}`);
+  } else {
+    ok(guard === undefined, `${name}: 不挂 qq-tool-restrict，保留完整 DSH 工具面`);
+  }
   const bad = row.config.plugins.filter((r) => typeof r.name === 'string' && (r.name.startsWith('.') || path.isAbsolute(r.name)));
   ok(bad.length === 0, `${name}: 没有任何相对/绝对路径子行名（0.1.7 下会按 profile 目录解析而装不上）${bad.length ? `：${bad.map((r) => r.name).join(', ')}` : ''}`);
-  const guardFile = path.join(BUNDLE_DIR, GUARD_SPECIFIER.slice('qq-agent-presets/'.length));
-  ok(fs.existsSync(guardFile), `${name}: 守卫实现存在（${path.relative(REPO_ROOT, guardFile)}）`);
+  if (name === 'qq-chat') {
+    const guardFile = path.join(BUNDLE_DIR, GUARD_SPECIFIER.slice('qq-agent-presets/'.length));
+    ok(fs.existsSync(guardFile), `${name}: 守卫实现存在（${path.relative(REPO_ROOT, guardFile)}）`);
+  }
 }
 
 console.log('## 4. bundle 声明与安全边界');
@@ -90,9 +96,9 @@ console.log('## 4. bundle 声明与安全边界');
   for (const needle of ["const SAFE_PREFIXES", "'mcp__snowluma__'", "'mcp__web-search-safe__'", 'SAFE_EXACT', 'return `工具 "']) {
     ok(canonicalText.includes(needle), `权威守卫包含 ${needle}`);
   }
-  // 一份实现：两个 preset 目录下的同名文件必须是 re-export 壳，且导出同名成员。
+  // 一份实现：qq-chat 的 preset 目录下保留 re-export 壳。
   const canonicalMod = await import(pathToFileURL(canonical).href);
-  for (const name of PRESETS) {
+  for (const name of ['qq-chat']) {
     const shim = path.join(REPO_ROOT, 'dsh', 'agent-presets', name, 'qq-tool-restrict.mjs');
     ok(/^export \* from '\.\.\/\.\.\/\.\.\/plugins\/qq-agent-presets\/qq-tool-restrict\.mjs'$/m.test(read(shim).trim()),
       `${name}/qq-tool-restrict.mjs 是指向唯一实现的 re-export 壳`);
@@ -101,7 +107,7 @@ console.log('## 4. bundle 声明与安全边界');
     assert.equal(shimMod.name, 'qq-tool-restrict');
     assert.deepEqual(shimMod.inject, ['tools']);
   }
-  ok(true, 're-export 壳与权威实现导出同一份 apply/inject');
+  ok(true, 'qq-chat re-export 壳与权威实现导出同一份 apply/inject');
 
   // fail-closed 复检（独立于 test-audit-setup-guards.mjs 的那份假 ctx 测试）。
   let guardFn;

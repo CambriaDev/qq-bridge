@@ -90,7 +90,7 @@ node scripts/setup-dsh.mjs
 
 This installs:
 
-- the `qq-agent-presets` bundle, which generates the two `@deepseek-ai/dsh-agent-preset` rows (`qq-chat`, `qq-chat-v2`) plus the shared `qq-tool-restrict` safety guard
+- the `qq-agent-presets` bundle, which generates the two `@deepseek-ai/dsh-agent-preset` rows (`qq-chat`, `qq-chat-v2`); `qq-tool-restrict` protects only `qq-chat`
 - MCP entries in `~/.dsh/profiles/web/cordis.patch.yml`
 - `qq-mode-console` and `qq-agent-presets` in the profile `package.json` (`bundles` + `link:` dependencies)
 - Default DSH mode set to `reserved2` (second-generation simulation), with a local `state/mode.json` fallback
@@ -102,7 +102,7 @@ Then restart DSH. See [docs/guides/DSH_SETUP.md](docs/guides/DSH_SETUP.md) for d
 - `config.json` and `state/` are **never committed**; the repository only ships `config.example.json`. Both are ACL-hardened to the owner / SYSTEM / Administrators (`npm run harden-acl`).
 - MCP send tools enforce whitelist checks and reject CQ-code injection.
 - Local paths, credentials, tokens and other sensitive patterns are filtered by the audit layer.
-- Simulation sessions get **no local execution tools at all**: the preset's `qq-tool-restrict` row hides them from the tool schema at registration time and a runtime allowlist rejects anything outside the QQ MCP namespaces (`npm run scan:tool-names` re-checks that list against the installed DSH).
+- `chat` / `reserved` sessions get **no local execution tools**: `qq-tool-restrict` hides them and rejects calls outside the QQ MCP allowlist. `reserved2` intentionally uses the full DSH standard tool surface, including local file, PowerShell, terminal, delegation and plugin tools. The QQ whitelist gates access to the bridge, not local tool permissions; if a group is allowed, all group members may trigger its session. File contents and command output used by `reserved2` enter DSH context and may be sent to the configured LLM provider or back to QQ when requested. Use only with trusted conversations and see [RULES.md](RULES.md) / [LICENSE](LICENSE).
 - The console uses a generated token when none is configured.
 
 ## Repository Layout
@@ -119,7 +119,7 @@ qq-bridge/
     audits/             # review / optimisation reports
     legacy/             # archived docs that were superseded
   dsh/agent-presets/    # qq-chat / qq-chat-v2 DSH agent preset templates
-  plugins/qq-agent-presets  # DSH bundle: generates the qq-chat / qq-chat-v2 preset patch rows + the shared tool guard
+  plugins/qq-agent-presets  # DSH bundle: generates both preset rows; the tool guard protects qq-chat only
   plugins/qq-mode-console  # DSH plugin: exposes the qq-mode settings namespace (host half only; no UI card yet)
   src/                  # bridge core and MCP servers
   public/

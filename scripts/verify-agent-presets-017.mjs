@@ -75,7 +75,9 @@ async function main() {
       const text = String(doc?.content ?? '');
       const rows = text.split('\n').filter((l) => /^- id:/.test(l)).map((l) => l.trim().slice(2));
       check(`${id} 可读回子行清单`, rows.length > 0, rows.join(' | '));
-      check(`${id} 含 qq-tool-restrict 守卫行`, text.includes('qq-tool-restrict'));
+      check(`${id} 守卫行符合模式权限`, id === 'qq-chat'
+        ? text.includes('qq-tool-restrict')
+        : !text.includes('qq-tool-restrict'));
     } catch (error) {
       check(`${id} agentPresets/read`, false, error.message);
     }

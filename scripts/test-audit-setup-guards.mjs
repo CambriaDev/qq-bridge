@@ -1,11 +1,11 @@
-// Execute both real preset plugins against a captured tools service, without DSH/QQ.
+// Execute qq-chat's real restriction plugin against a captured tools service, without DSH/QQ.
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 let failures = 0;
-for (const preset of ['qq-chat', 'qq-chat-v2']) {
+for (const preset of ['qq-chat']) {
   const { apply } = await import(pathToFileURL(path.join(root, 'dsh/agent-presets', preset, 'qq-tool-restrict.mjs')).href);
   let guard;
   const restricted = [];

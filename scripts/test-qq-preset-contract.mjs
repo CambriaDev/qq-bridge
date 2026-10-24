@@ -22,18 +22,27 @@ test('reserved2 YAML resolves to the expected persona and template variables', (
   assert.equal(Object.hasOwn(persona.config, 'text'), false);
 });
 
-test('local/admin tool restrictions and existing compaction budgets stay intact', () => {
-  assert.deepEqual(preset.map((row) => row.id), [
-    'persona', 'tool-web', 'tool-ask-user', 'tool-todo', 'qq-tool-restrict', 'compaction',
+test('reserved2 enables DSH tools while retaining QQ/admin safeguards and compaction budgets', () => {
+  const flatten = (items) => items.flatMap((row) => [
+    row,
+    ...(row?.group === true && Array.isArray(row.config) ? flatten(row.config) : []),
   ]);
-  assert.deepEqual(preset.find((row) => row.id === 'tool-web').config, { search: false, fetch: false });
-  assert.equal(preset.find((row) => row.id === 'qq-tool-restrict').name, './qq-tool-restrict.mjs');
+  const byId = new Map(flatten(preset).map((row) => [row.id, row]));
+  assert.equal(byId.has('qq-tool-restrict'), false);
+  assert.equal(byId.get('tool-fs')?.name, '@deepseek-ai/dsh-tool-fs');
+  assert.equal(byId.get('tool-fs-search')?.name, '@deepseek-ai/dsh-tool-fs-search');
+  assert.equal(byId.get('tool-pwsh')?.name, '@deepseek-ai/dsh-tool-pwsh');
+  assert.equal(byId.get('tool-web')?.config?.fetch, true);
   const compaction = preset.find((row) => row.id === 'compaction');
   assert.deepEqual(compaction.isolate, { compaction: true, toolResultPruner: true });
   assert.deepEqual(compaction.config.find((row) => row.id === 'tool-result-pruner').config, {
     thresholdChars: 50000, headChars: 45000, tailChars: 2000,
   });
-  for (const text of ['你没有本地工具', '群友没有管理权限', 'API 令牌', '角色由桥接注入']) {
+  for (const text of [
+    '你拥有 DSH 本机工具', '桥接白名单内获准的 QQ 会话', '删除或覆盖文件',
+    '本机文件内容与命令输出会进入 DSH 上下文',
+    '群友没有管理权限', 'API 令牌', '角色由桥接注入',
+  ]) {
     assert.ok(prefix.includes(text), `missing safety rule: ${text}`);
   }
 });

@@ -103,8 +103,12 @@ function normalizeRows(rows, preset) {
     return next;
   });
   const normalized = walk(rows, 'plugins');
-  for (const required of ['persona', 'qq-tool-restrict']) {
-    if (!seen.has(required)) throw new Error(`${preset}: 行列表缺少 ${required} 行（安全/人格边界不允许缺失）`);
+  if (!seen.has('persona')) throw new Error(`${preset}: 行列表缺少 persona 行`);
+  if (preset === 'qq-chat' && !seen.has('qq-tool-restrict')) {
+    throw new Error(`${preset}: 必须挂载 qq-tool-restrict（第一代 QQ 聊天不开放本地工具）`);
+  }
+  if (preset === 'qq-chat-v2' && seen.has('qq-tool-restrict')) {
+    throw new Error(`${preset}: 二代仿真使用完整 DSH 工具面，不得挂载 qq-tool-restrict`);
   }
   return normalized;
 }
@@ -133,7 +137,7 @@ export function renderPatch(name) {
     `# 本文件由 scripts/build-agent-preset-patches.mjs 生成，请勿手工编辑。`,
     `# 源：dsh/agent-presets/${name}/preset.yml + agent.cordis.yml（人格正文与工具面都在那里改）。`,
     `# 作用：把 ${name} 作为一条 @deepseek-ai/dsh-agent-preset 行插入 profile（DSH 0.1.7+ 的 preset 机制）。`,
-    `# 守卫行 qq-tool-restrict 用裸说明符 ${GUARD_SPECIFIER}：子行 name 按 profile 目录解析，`,
+    `# 若有 qq-tool-restrict 行，它使用裸说明符 ${GUARD_SPECIFIER}：子行 name 按 profile 目录解析，`,
     `# 该包以 link: 依赖注册在 profile package.json（node_modules junction 由 setup-dsh.mjs 维护）。`,
     '',
   ].join('\n');

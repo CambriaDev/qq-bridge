@@ -142,14 +142,43 @@ test('mode, preset, model, and effort resolve independently per conversation', (
   assert.equal(router.modelFor('private:8'), 'default-model');
 });
 
-test('simulation permissions deny local tools and admin commands', () => {
-  const router = new SessionRouter({ ownerQQ });
+test('chat and reserved deny local tools; reserved2 enables DSH tools without admin commands', () => {
+  const modePresets = (simulationPreset) => ({
+    chat: ['qq-chat'],
+    reserved: ['qq-chat'],
+    reserved2: ['qq-chat-v2'],
+    simulation: [simulationPreset],
+    'closed-agent': ['qsh-closed'],
+  });
+  for (const mode of ['chat', 'reserved']) {
+    const router = new SessionRouter({
+      ownerQQ, defaultMode: mode, modePresets: modePresets('qq-chat'),
+    });
+    assert.deepEqual(router.permissionsFor('group:8'), {
+      localExecution: false, localFiles: false, adminCommands: false,
+    });
+    assert.deepEqual(router.permissionsFor('private:8'), router.permissionsFor('group:8'));
+    assert.deepEqual(router.permissionsFor(ownerKey), {
+      localExecution: true, localFiles: true, adminCommands: true,
+    });
+  }
+
+  const reserved2 = new SessionRouter({
+    ownerQQ,
+    defaultMode: 'reserved2',
+    modePresets: modePresets('qq-chat-v2'),
+  });
+  assert.equal(reserved2.presetFor('group:8'), 'qq-chat-v2');
+  assert.deepEqual(reserved2.permissionsFor('group:8'), {
+    localExecution: true, localFiles: true, adminCommands: false,
+  });
+  assert.deepEqual(reserved2.permissionsFor('private:8'), reserved2.permissionsFor('group:8'));
+});
+
+test('canonical simulation remains restricted to prevent accidental tool enablement', () => {
+  const router = new SessionRouter({ ownerQQ, defaultMode: 'simulation' });
   assert.deepEqual(router.permissionsFor('group:8'), {
     localExecution: false, localFiles: false, adminCommands: false,
-  });
-  assert.deepEqual(router.permissionsFor('private:8'), router.permissionsFor('group:8'));
-  assert.deepEqual(router.permissionsFor(ownerKey), {
-    localExecution: true, localFiles: true, adminCommands: true,
   });
 });
 

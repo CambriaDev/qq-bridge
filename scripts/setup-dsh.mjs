@@ -259,7 +259,7 @@ function ensureDirLink(linkPath, targetDir, label) {
  * 两层链接，与 `dsh plugin install`（pnpm）物化出的形态一致：
  *   ~/.dsh/plugins/<name>  → 仓库目录（人工可读的"安装位"）
  *   <profile>/node_modules/<name> → ~/.dsh/plugins/<name>（Node 解析路径）
- * 第二层必须自己建：preset 子行按 profile 目录解析裸说明符
+ * 第二层必须自己建：qq-chat 的 preset 子行按 profile 目录解析裸说明符
  * （qq-agent-presets/qq-tool-restrict.mjs），缺了它 preset 会整条挂载失败。
  */
 function ensureBundle(name) {

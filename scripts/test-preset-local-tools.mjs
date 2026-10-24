@@ -1,10 +1,10 @@
-// 铁律 L7 的注册期断言：仿真会话的 preset **不得包含本地执行能力**。
+// 铁律 L7 的注册期断言：第一代聊天 preset **不得包含本地执行能力**。
 //
 // 为什么必须有这个文件
 // --------------------
 // `QSH_PLAN.md` §0.1 的结论是：QQ 动作闸门全部跑在桥接进程内，而 OneBot 的
 // 127.0.0.1:3000 HTTP 接口可被任何本机进程用 Bearer token 直接调用。因此
-// **"仿真会话拿不到 shell"是整个分层安全模型唯一的真边界**。
+// **"第一代聊天拿不到 shell"是其安全模型的硬边界**；reserved2 则按用户决定使用完整 DSH 工具面。
 //
 // 但在此之前没有任何断言检查过这件事：
 //   · `test-audit-setup-guards.mjs` 把工具名**喂**给 guard，验证它拒绝——这证明
@@ -12,7 +12,7 @@
 //   · `probe-tools.mjs` 只断言"模型某一轮没有调用本地工具"——**没调用 ≠ 不在清单里**。
 //
 // 本测试补上注册期那一半：从**真实 preset 文件**里解析出 preset 组成，断言
-// 工具守卫被挂载，并且守卫的 restrict 名单覆盖每一个已知本地执行工具。
+// 受限 preset 挂载工具守卫，并且守卫的 restrict 名单覆盖每一个已知本地执行工具。
 // 它不依赖运行中的 DSH，因此可以进 `npm run test:audit`，每次回归都跑。
 //
 // 口径说明：这里断言的是"preset 声明会隐藏/拒绝这些名字"。真正的端到端断言
@@ -22,6 +22,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import fs from 'node:fs';
 import path from 'node:path';
+import yaml from 'js-yaml';
 import { fileURLToPath } from 'node:url';
 import { pathToFileURL } from 'node:url';
 import { collectDshToolNames as collectDshToolNamesShared } from './dsh-tool-names.mjs';
@@ -29,8 +30,8 @@ import { collectDshToolNames as collectDshToolNamesShared } from './dsh-tool-nam
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const PRESETS_DIR = path.join(ROOT, 'dsh', 'agent-presets');
 
-/** 仿真模式使用的 preset（不允许有任何本地执行能力）。 */
-const SIMULATION_PRESETS = ['qq-chat', 'qq-chat-v2'];
+/** 第一代聊天 preset（不允许有任何本地执行能力）。 */
+const RESTRICTED_PRESETS = ['qq-chat'];
 
 /** 封闭 agent 的 preset：按设计**允许**完整本地工具面。 */
 const CLOSED_AGENT_PRESETS = ['qsh-closed'];
@@ -125,8 +126,8 @@ function readPreset(id) {
 }
 
 // ---------------------------------------------------------------------------
-test('模拟会话的 preset 都挂了工具守卫（否则 L7 没有任何载体）', () => {
-  for (const id of SIMULATION_PRESETS) {
+test('第一代聊天 preset 挂了工具守卫（否则 L7 没有任何载体）', () => {
+  for (const id of RESTRICTED_PRESETS) {
     const { yml } = readPreset(id);
     assert.match(
       yml,
@@ -141,8 +142,8 @@ test('模拟会话的 preset 都挂了工具守卫（否则 L7 没有任何载�
   }
 });
 
-test('模拟会话的 preset 不得挂载 tool-web 的 search/fetch', () => {
-  for (const id of SIMULATION_PRESETS) {
+test('第一代聊天 preset 不得挂载 tool-web 的 search/fetch', () => {
+  for (const id of RESTRICTED_PRESETS) {
     const { yml } = readPreset(id);
     const webRow = /id:\s*tool-web[\s\S]{0,200}/.exec(yml);
     assert.ok(webRow, `${id} 应有 tool-web 条目`);
@@ -151,8 +152,58 @@ test('模拟会话的 preset 不得挂载 tool-web 的 search/fetch', () => {
   }
 });
 
+test('二代仿真挂载 DSH standard 工具面且不使用 QQ 工具守卫', () => {
+  const { yml } = readPreset('qq-chat-v2');
+  assert.equal(fs.existsSync(path.join(PRESETS_DIR, 'qq-chat-v2', 'qq-tool-restrict.mjs')), false,
+    'qq-chat-v2 不应保留容易被重新挂载的工具守卫 shim');
+  const rows = yaml.load(yml);
+  const flatten = (items) => items.flatMap((row) => [
+    row,
+    ...(row?.group === true && Array.isArray(row.config) ? flatten(row.config) : []),
+  ]);
+  const allRows = flatten(rows);
+  const byId = new Map(allRows.map((row) => [row.id, row]));
+
+  assert.equal(byId.has('qq-tool-restrict'), false, 'qq-chat-v2 不得挂载会拒绝 DSH 工具的守卫');
+  for (const [id, name] of [
+    ['agent-instructions', '@deepseek-ai/dsh-agent-instructions'],
+    ['time-context', '@deepseek-ai/dsh-time-context'],
+    ['tool-bash', '@deepseek-ai/dsh-tool-bash'],
+    ['tool-pwsh', '@deepseek-ai/dsh-tool-pwsh'],
+    ['tool-fs', '@deepseek-ai/dsh-tool-fs'],
+    ['tool-fs-search', '@deepseek-ai/dsh-tool-fs-search'],
+    ['tool-jobs', '@deepseek-ai/dsh-tool-jobs'],
+    ['tool-schedule', '@deepseek-ai/dsh-tool-schedule'],
+    ['skill-filesystem', '@deepseek-ai/dsh-skill-filesystem'],
+    ['tool-skill', '@deepseek-ai/dsh-tool-skill'],
+    ['command-goal', '@deepseek-ai/dsh-command-goal'],
+    ['tool-goal', '@deepseek-ai/dsh-tool-goal'],
+    ['plan-mode', '@deepseek-ai/dsh-plan-mode'],
+    ['tool-subagent-control', '@deepseek-ai/dsh-tool-subagent-control'],
+    ['tool-subagent-list-agents', '@deepseek-ai/dsh-tool-subagent-control/list-agents'],
+    ['tool-subagent', '@deepseek-ai/dsh-tool-subagent'],
+    ['tool-subagent-fork', '@deepseek-ai/dsh-tool-subagent'],
+    ['workflow-ptc', '@deepseek-ai/dsh-workflow-ptc'],
+    ['tool-workflow', '@deepseek-ai/dsh-tool-workflow'],
+    ['tool-ask-user', '@deepseek-ai/dsh-tool-ask-user'],
+    ['tool-todo', '@deepseek-ai/dsh-tool-todo'],
+    ['tool-web', '@deepseek-ai/dsh-tool-web'],
+    ['present', '@deepseek-ai/dsh-tool-present'],
+    ['tool-plugin-manager', '@deepseek-ai/dsh-plugin-manager/tools'],
+    ['tool-plugin-market', '@deepseek-ai/dsh-plugin-market/tools'],
+  ]) {
+    assert.equal(byId.get(id)?.name, name, `qq-chat-v2 应挂载 ${id} (${name})`);
+  }
+  assert.equal(byId.get('tool-bash')?.disabled, true, 'Windows 下 DSH standard 应禁用 bash');
+  assert.equal(byId.get('tool-pwsh')?.disabled, false, 'Windows 下 PowerShell 应启用');
+  assert.equal(byId.get('tool-web')?.config?.fetch, true, 'DSH standard 的 web_fetch 应启用');
+  assert.equal(byId.get('tool-plugin-manager')?.disabled, false, '插件管理工具应启用');
+  assert.equal(byId.get('tool-plugin-market')?.disabled, false, '插件市场工具应启用');
+  assert.deepEqual(byId.get('tool-todo')?.config, { allowParallelInProgress: true });
+});
+
 test('守卫的 restrict 名单覆盖每一个已知本地执行工具', async () => {
-  for (const id of SIMULATION_PRESETS) {
+  for (const id of RESTRICTED_PRESETS) {
     const { dir } = readPreset(id);
     const guardPath = path.join(dir, 'qq-tool-restrict.mjs');
     assert.ok(fs.existsSync(guardPath), `${id} 的守卫文件存在`);
@@ -188,7 +239,7 @@ test('守卫的 restrict 名单覆盖每一个已知本地执行工具', async (
 test('守卫导出的名单与本测试的清单一致（防两份名单各自漂移）', async () => {
   // 先前这个测试只是"复制"名单的前 19 个名字，导致守卫里多出的 7 个名字
   // 从来没被断言过。现在改为**导入**守卫自己导出的数组，两边不可能漂移。
-  for (const id of SIMULATION_PRESETS) {
+  for (const id of RESTRICTED_PRESETS) {
     const { dir } = readPreset(id);
     const mod = await import(pathToFileURL(path.join(dir, 'qq-tool-restrict.mjs')).href);
     assert.ok(
@@ -216,7 +267,7 @@ test('守卫名单里的每个名字都是 DSH 真实注册的工具（防拼错
     console.log('  ⏭  跳过：未找到 DSH 工具包（设 DSH_TOOL_PACKAGES 指向 @deepseek-ai 目录即可启用）');
     return;
   }
-  for (const id of SIMULATION_PRESETS) {
+  for (const id of RESTRICTED_PRESETS) {
     const { dir } = readPreset(id);
     const mod = await import(pathToFileURL(path.join(dir, 'qq-tool-restrict.mjs')).href);
     const fabricated = mod.RESTRICTED_TOOL_NAMES
@@ -228,7 +279,7 @@ test('守卫名单里的每个名字都是 DSH 真实注册的工具（防拼错
 });
 
 test('守卫仍放行 QQ MCP 命名空间与无害模型侧工具', async () => {
-  for (const id of SIMULATION_PRESETS) {
+  for (const id of RESTRICTED_PRESETS) {
     const { dir } = readPreset(id);
     const guardPath = path.join(dir, 'qq-tool-restrict.mjs');
     const fakeTools = { restrict() {}, guard(fn) { this._guard = fn; } };

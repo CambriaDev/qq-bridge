@@ -39,7 +39,7 @@
  *     store them before treating a change as durable (iron law L5).
  */
 
-/** Simulation is the safe default: no local tools, whitelist-gated. */
+/** Legacy chat/reserved and canonical simulation remain restricted; reserved2 is explicitly tool-enabled. */
 const SIMULATION_MODES = Object.freeze(['chat', 'reserved', 'reserved2']);
 
 /**
@@ -119,13 +119,22 @@ export const LEGACY_TO_CANONICAL = Object.freeze({
 });
 
 /**
- * Capability facts per mode. These are *statements about the preset*, not an
- * enforcement point: enforcement is the preset's tool guard (iron law L7) plus
- * the bridge's own gates. Kept here so the router is the single place that
- * answers "may this mode use local tools?".
+ * Capability facts per mode/preset. These are *statements about the preset*,
+ * not an enforcement point: the preset supplies the DSH tool surface and the
+ * bridge supplies QQ admission/admin gates. The legacy `reserved2` spelling
+ * canonicalizes to `simulation`, so its distinct tool permission is keyed by
+ * the explicitly selected qq-chat-v2 preset.
  */
+const RESTRICTED_PERMISSIONS = Object.freeze({
+  localExecution: false, localFiles: false, adminCommands: false,
+});
+const TOOL_ENABLED_PERMISSIONS = Object.freeze({
+  localExecution: true, localFiles: true, adminCommands: false,
+});
 const PERMISSIONS = Object.freeze({
-  simulation: Object.freeze({ localExecution: false, localFiles: false, adminCommands: false }),
+  simulation: RESTRICTED_PERMISSIONS,
+  chat: RESTRICTED_PERMISSIONS,
+  reserved: RESTRICTED_PERMISSIONS,
   'closed-agent': Object.freeze({ localExecution: true, localFiles: true, adminCommands: true }),
 });
 
@@ -515,7 +524,11 @@ export class SessionRouter {
   modelFor(key) { return this.policyFor(key).model; }
   effortFor(key) { return this.policyFor(key).reasoningEffort; }
 
-  permissionsFor(key) { return PERMISSIONS[this.canonicalModeFor(key)]; }
+  permissionsFor(key) {
+    const policy = this.policyFor(key);
+    if (policy.preset === 'qq-chat-v2') return TOOL_ENABLED_PERMISSIONS;
+    return PERMISSIONS[policy.mode];
+  }
 
   /**
    * True when this conversation may run in its resolved mode.

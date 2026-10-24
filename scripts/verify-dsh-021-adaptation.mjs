@@ -92,8 +92,8 @@ for (const p of ['qq-chat', 'qq-chat-v2']) {
 // patch 插入的一条 @deepseek-ai/dsh-agent-preset 行。因此这里改成核对：
 //   ① bundle patch 与仓库权威源一致（生成器 --check，防手改/忘重新生成）；
 //   ② bundle 已注册进 profile（link: 依赖 + bundles + node_modules junction，
-//      守卫行的裸说明符就靠这个 junction 解析）；
-//   ③ 守卫实现只有一份且 fail-closed。
+//      qq-chat 守卫行的裸说明符就靠这个 junction 解析）；
+//   ③ qq-chat 守卫实现只有一份且 fail-closed。
 const norm = (s) => s.replace(/\r\n/g, '\n');
 const presetPatches = await import(pathToFileURL(path.join(ROOT, 'scripts/build-agent-preset-patches.mjs')).href);
 for (const { file, changed } of presetPatches.buildPatches({ check: true, log: () => {} })) {
@@ -109,7 +109,9 @@ for (const p of ['qq-chat', 'qq-chat-v2']) {
   const patchPersona = (row?.config?.plugins ?? []).find((r) => r.id === 'persona');
   check(`patch ${p}: persona.prefix 与源逐字一致`, norm(srcPersona?.config?.prefix ?? '') === norm(patchPersona?.config?.prefix ?? ''));
   const guardRow = (row?.config?.plugins ?? []).find((r) => r.id === 'qq-tool-restrict');
-  check(`patch ${p}: 守卫行用 Profile 目录可解析的裸说明符`, guardRow?.name === presetPatches.GUARD_SPECIFIER);
+  check(`patch ${p}: 守卫符合模式权限`, p === 'qq-chat'
+    ? guardRow?.name === presetPatches.GUARD_SPECIFIER
+    : guardRow === undefined);
 }
 
 // 守卫脚本必须是 fail-closed 的：非法工具名要被拒绝，而不是放行（权威实现只有一份）。
@@ -207,9 +209,8 @@ check('bridge.js 默认模型为 deepseek-flash', /model:\s*'deepseek-flash'/.te
 check('bridge.js 不再有「无参创建会话」兜底', !/sessions\.create\(\{\}\)/.test(bridgeCode));
 check('bridge.js 含 preset 清单/默认 preset 解析', bridgeSrc.includes('resolvePresetName') && bridgeSrc.includes('refreshPresetList'));
 
-// 安全不变量回归防线：群聊/仿真会话在 preset 缺失时必须 fail-closed。
-// 旧实现会在 preset 不在 DSH 清单里时静默回退到 DSH 默认 preset（standard，含 bash/
-// 文件读写），把本地工具暴露给 QQ 群 —— 与 RULES.md「无本地工具」的承诺直接矛盾。
+// 安全不变量回归防线：群聊/仿真会话在 preset 缺失时必须 fail-closed，不能静默换成
+// DSH 默认 preset；chat/reserved 隔离本机工具，reserved2 则只通过 qq-chat-v2 明确开放。
 check('preset 解析带 strict 开关', /resolvePresetName\(name, \{ strict = false \} = \{\}\)/.test(bridgeCode));
 check('非 closed-agent 模式以 strict 解析 preset', /resolvePresetName\(wanted, \{ strict: true \}\)/.test(bridgeCode));
 check('群聊模式缺少 preset 时拒绝建会话（fail-closed）', /strictPreset && !preset/.test(bridgeCode));

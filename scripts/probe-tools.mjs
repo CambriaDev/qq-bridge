@@ -2,7 +2,7 @@
 //  1. 建会话挂 preset（qq-chat / qq-chat-v2）
 //  2. 注入一条 prompt，要求 agent 调 mcp__snowluma-host__snowluma_status（不依赖 SnowLuma 在线）
 //  3. 观测 turn 事件里的 tool/call 与 tool/result，确认 MCP 工具真的可调用
-//  4. 同时确认本地危险工具（pwsh/bash 等）不在工具面里
+//  4. qq-chat 确认本地危险工具不可调用；qq-chat-v2 确认只读 PowerShell 可调用
 import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import { probeCookie, probeRpc, probeMuxSocket, probeWorkspaceDir } from './probe-auth.mjs';
@@ -45,7 +45,9 @@ const done = new Promise((resolve) => {
       const p = await rpc('session/prompt', {
         request: {
           sessionId, requestId: randomUUID(), mode: 'queue',
-          content: [{ type: 'text', text: '请调用 mcp__snowluma-host__snowluma_status 工具一次，然后只回复：完成' }]
+          content: [{ type: 'text', text: PRESET === 'qq-chat-v2'
+            ? '请调用 mcp__snowluma-host__snowluma_status 工具一次，再用 PowerShell 执行只读命令 Get-Location，然后只回复：完成'
+            : '请调用 mcp__snowluma-host__snowluma_status 工具一次，然后只回复：完成' }]
         }
       });
       console.log('prompt ->', JSON.stringify(p).slice(0, 120));
@@ -73,10 +75,15 @@ console.log('tool/call:', JSON.stringify(toolCalls));
 console.log('tool/result:', JSON.stringify(toolResults));
 
 const calledMcp = toolCalls.some((c) => String(c.name).startsWith('mcp__snowluma-host__'));
+const successfulPowerShell = toolResults.some((result) => result.name === 'pwsh' && !result.isError);
 const calledLocal = toolCalls.some((c) => /^(pwsh|bash|write|edit|read|glob|grep)$/.test(String(c.name)));
 console.log('\n判定:');
 console.log(`  MCP 工具可调用          : ${calledMcp ? '✅' : '❌ 未观测到 mcp__snowluma-host__ 调用'}`);
-console.log(`  未调用本地危险工具      : ${calledLocal ? '❌ 出现了本地工具调用' : '✅'}`);
+if (PRESET === 'qq-chat-v2') {
+  console.log(`  reserved2 PowerShell 可用 : ${successfulPowerShell ? '✅' : '❌ 未观测到成功的 pwsh 调用'}`);
+} else {
+  console.log(`  未调用本地危险工具      : ${calledLocal ? '❌ 出现了本地工具调用' : '✅'}`);
+}
 
 try { socket.close(); } catch {}
 await rpc('workspace/archiveSession', { request: { sessionId } });
@@ -86,4 +93,4 @@ try { await rpc('workspace/delete', { request: { workspaceId: wsId } }); } catch
 // 工作区删完目录还在临时区里（空目录 + 会话已归档），一并清掉，别让探针留垃圾。
 try { fs.rmSync(dir, { recursive: true, force: true }); } catch {}
 console.log('[cleanup] session archived, probe workspace deleted');
-process.exit(calledMcp && !calledLocal ? 0 : 1);
+process.exit(calledMcp && (PRESET === 'qq-chat-v2' ? successfulPowerShell : !calledLocal) ? 0 : 1);

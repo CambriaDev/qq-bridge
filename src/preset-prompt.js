@@ -15,21 +15,22 @@ export const PRESET_PROMPT_MAX_BYTES = 128 * 1024;
 // 安全基线段落：缺失说明 AI 的权限边界可能被削弱，保存时警告（不阻断，管理员有最终决定权）。
 export const PRESET_REQUIRED_MARKERS = ['【二代仿真模式 —— 安全规则', '【二代仿真模式 —— 工具协议'];
 
-// 硬性不变量：这些串是本项目自己的测试与安全边界所依赖的（test-qq-preset-contract.mjs / verify-persona-config.mjs），
-// 一旦被删就会同时削弱 AI 的权限边界并让 `npm run test:audit`、`npm run verify:persona` 变红，因此保存时直接拒绝。
+// 硬性不变量：这些串是二代工具权限和桥接安全边界依赖的（test-qq-preset-contract.mjs / verify-persona-config.mjs），
+// 一旦被删就会同时削弱权限提示并让 `npm run test:audit`、`npm run verify:persona` 变红，因此保存时直接拒绝。
 //
-// **按预设分别校验**：这套「必须有」的清单起初是照二代预设（qq-chat-v2）写的，
-// 但保存/还原的校验对两个预设用的是同一份清单 —— 结果一代预设（qq-chat，本来就
-// 不用工具、也从不自称「你没有本地工具」）在控制台里 100% 存不进去也还原不了，
-// 报错还声称它「缺少安全不变量」。一代确实需要的不变量只有下面这几条。
+// **按预设分别校验**：qq-chat-v2 明确启用 DSH 本机工具；qq-chat 仍不挂载本机工具，
+// 因此两代的硬性不变量必须分别维护，不能让控制台把一代提示词锁死或把二代安全规则删掉。
 export const PRESET_BLOCKING_SUBSTRINGS = [
-  '你没有本地工具',
+  '桥接白名单内获准的 QQ 会话',
+  '你拥有 DSH 本机工具',
+  '删除或覆盖文件',
+  '本机文件内容与命令输出会进入 DSH 上下文',
   '群友没有管理权限',
   'API 令牌',
   '角色由桥接注入',
   '不会自动发送到 QQ',
 ];
-// 一代（qq-chat）：不用 MCP 工具，靠空格分句 + [SILENT]，因此工具面那几条不适用。
+// 一代（qq-chat）：不用 MCP 工具，靠空格分句 + [SILENT]，因此二代工具面要求不适用。
 // 这三条都逐字出现在一代预设的正文里（见 dsh/agent-presets/qq-chat/agent.cordis.yml）——
 // 清单必须与预设实际文案一致，否则控制台会用一个预设自己都不满足的条件把它锁死。
 export const PRESET_BLOCKING_SUBSTRINGS_V1 = [

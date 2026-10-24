@@ -3,9 +3,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-// 本文件是 qq-agent-presets bundle 里的**唯一权威实现**，由 qq-chat / qq-chat-v2 两个
-// agent preset 的 qq-tool-restrict 行共同引用（dsh/agent-presets/<preset>/qq-tool-restrict.mjs
-// 只是个 re-export 壳，避免出现两份会漂移的实现）。
+// 本文件是 qq-agent-presets bundle 里的**唯一权威实现**，由 qq-chat 的
+// qq-tool-restrict 行引用（dsh/agent-presets/qq-chat/qq-tool-restrict.mjs 是 re-export 壳）。
 //
 // 为什么引用方式是「包名/子路径」而不是 `./qq-tool-restrict.mjs`（DSH 0.1.7 的机制变化）：
 //   0.1.5 的 preset 是 ~/.dsh/.agent-presets/<preset>/ 目录，相对名按 preset 目录解析；
@@ -21,7 +20,7 @@ import { fileURLToPath } from 'node:url'
 //  1) 用 tools.restrict 把本地执行/文件类工具与开发工具从**工具清单**里隐藏（注册期）；
 //  2) 用 tools.guard 白名单兜底：任何不在允许范围内的工具，执行时一律拒绝。
 //
-// ⚠️ 第 1 条是铁律 L7 的落点，不是"附注"：仿真会话的 preset 永不包含本地工具。
+// ⚠️ 第 1 条是第一代 QQ 聊天 preset 的安全边界，不是"附注"：它永不包含本地工具。
 //    `tools.guard` 只能拒绝**执行**，工具名仍会出现在模型的 schema 里——
 //    那既不满足"仿真会话不得拥有本地执行能力"的注册期要求，也会诱导模型去调它。
 //    所以本地工具必须同时出现在下面的 restrict 名单里。
