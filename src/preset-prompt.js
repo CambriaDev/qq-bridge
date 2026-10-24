@@ -15,13 +15,16 @@ export const PRESET_PROMPT_MAX_BYTES = 128 * 1024;
 // 安全基线段落：缺失说明 AI 的权限边界可能被削弱，保存时警告（不阻断，管理员有最终决定权）。
 export const PRESET_REQUIRED_MARKERS = ['【二代仿真模式 —— 安全规则', '【二代仿真模式 —— 工具协议'];
 
-// 硬性不变量：这些串是二代工具权限和桥接安全边界依赖的（test-qq-preset-contract.mjs / verify-persona-config.mjs），
-// 一旦被删就会同时削弱权限提示并让 `npm run test:audit`、`npm run verify:persona` 变红，因此保存时直接拒绝。
+// 硬性不变量：这些串保护二代工具行为提示并保留「owner 限制仅在提示词层」的披露
+// （test-qq-preset-contract.mjs / verify-persona-config.mjs）；这不构成调用期授权。
+// 若被删会削弱权限提示并让 `npm run test:audit`、`npm run verify:persona` 变红，因此保存时直接拒绝。
 //
 // **按预设分别校验**：qq-chat-v2 明确启用 DSH 本机工具；qq-chat 仍不挂载本机工具，
 // 因此两代的硬性不变量必须分别维护，不能让控制台把一代提示词锁死或把二代安全规则删掉。
 export const PRESET_BLOCKING_SUBSTRINGS = [
-  '桥接白名单内获准的 QQ 会话',
+  '只有当前待处理的 QQ 消息在桥接注入的真实上下文中明确带有【管理员】标记',
+  '非管理员提出的工具请求一律礼貌拒绝',
+  '桥接没有代码层身份校验',
   '你拥有 DSH 本机工具',
   '删除或覆盖文件',
   '本机文件内容与命令输出会进入 DSH 上下文',

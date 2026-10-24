@@ -28,14 +28,14 @@
 | 主体 | 通道 | 权限 |
 | --- | --- | --- |
 | **管理员（ownerQQ，控制台或 DSH 设置页可配置）** | QQ 群/私聊 | 正常聊天 + **管理命令由桥接硬执行**（不经过模型）：`/role <角色名>` 切人格、`/role off` 清除、`/silent` 静默、`/active` 恢复、`/reset`、`/status`；消息自动带【管理员】标记 |
-| **群友** | QQ 群 | **仅正常聊天**。控制词、`/` 管理命令被桥接拦截；静默模式下消息不投递给 agent |
+| **群友** | QQ 群 | 正常聊天。控制词、`/` 管理命令被桥接拦截；静默模式下消息不投递给 agent。`reserved2` 提示词要求模型拒绝非 owner 用户的工具请求，但不是代码层硬限制 |
 | **管理员** | **桥接控制台**（`http://127.0.0.1:3100`） | **最高权限**：控制模式（控制台顶部模式按钮）、控制角色/静默（写 `state/current-role.json`）、完整 DSH 工具（含本地操作）、查看 QQ 活动日志（`state/qq-activity.log`）、直接打开「QQ 聊天」工作区会话对话 |
 | **QQ 会话 agent（chat 模式）** | — | 最低权限面（见下） |
 
 ## QQ 会话 agent 的权限边界
 
 1. **按模式区分本机工具**：`chat` / `reserved` 使用 `qq-chat`，不挂载本机工具；`qq-tool-restrict.mjs` 在注册期隐藏危险工具，并在执行期拒绝白名单外调用。`reserved2` 使用 `qq-chat-v2`，明确开放 DSH standard 工具面，包括文件读写/搜索、PowerShell、终端、任务/计划、子代理/工作流、内置联网、展示与插件管理。完整工具权限是此模式的有意行为，不要把 `reserved2` 用于不信任的会话。
-2. **白名单不等于用户级隔离**：桥接只把配置的 `allow.groups` 群和 `allow.private` 私聊纳入交互范围；若开放某个群，群内所有成员都可能触发该会话。请仅开放可信的私聊，或确认每个获准群的成员都可信。白名单限制谁可触达 QQ 桥接，不会缩小 `reserved2` 的 DSH 本机工具权限。
+2. **白名单不等于用户级隔离**：桥接只把配置的 `allow.groups` 群和 `allow.private` 私聊纳入交互范围；若开放某个群，群内所有成员都可能触发该会话。`reserved2` 的提示词要求模型只为带桥接【管理员】标记的 ownerQQ 请求调用工具，但没有代码层身份校验，不能作为强安全边界；请仅开放可信的私聊，或确认每个获准群的成员都可信。白名单限制谁可触达 QQ 桥接，不会缩小 `reserved2` 的 DSH 本机工具权限。
 3. **本机数据会交给模型处理**：`reserved2` 读取的文件内容、命令输出及工具结果会进入 DSH 会话上下文，并可能发送给 DSH 配置的 LLM 提供方；agent 也可能按获准请求将内容发回白名单 QQ 对话。不要把秘密文件放在可操作目录，勿要求读取/发送凭据。文件写入、命令和插件工具也可能改变本机状态或产生外部影响。
 4. **QQ 动作仍有桥接白名单**：发送类工具（`qq_send_group_message` / `qq_send_private_message` / `qq_send_message` / `qq_send_burst` / `qq_reply` / `qq_send_poke` / `qq_send_sticker` / `qq_send_voice` 等）的目标必须命中 `config.json` 的 `allow.groups` / `allow.private`，否则拒绝执行。QQ 动作无禁言、踢人等管理能力。
    - **语音额外收紧**：`qq_send_voice` 只能发**语音库**（`socialV2.voice.dir`，默认 `qq-bridge/audio/`）里的文件，不能直接把任意本地路径、URL 或 base64 作为语音发送（避免 prompt injection 外发任意本机文件）；另有独立的时长/体积/频率上限（`socialV2.voice.*`），额度与文本发送分开计数。详见 [docs/guides/VOICE.md](docs/guides/VOICE.md)。

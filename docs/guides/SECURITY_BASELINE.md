@@ -40,6 +40,7 @@
 | --- | --- | --- |
 | 预设工具守卫 | `plugins/qq-agent-presets/qq-tool-restrict.mjs`（唯一权威实现；仅 `qq-chat` 挂载） | `chat` / `reserved`：注册期隐藏本机执行工具，执行期仅放行 QQ 安全 MCP、`ask_user_question` / `todo_write`；`reserved2` 的 `qq-chat-v2` 不挂守卫，使用完整 DSH standard 工具面。守卫工具名需在每次升级 DSH 后用 `npm run scan:tool-names` 对账。 |
 | 按模式声明工具权限 | `src/core/session-router.mjs` + preset patch | `chat` / `reserved` 不开放本机工具；`reserved2` 开放文件、PowerShell、终端、子代理、工作流、联网和插件工具，但不授予桥接管理命令。 |
+| `reserved2` owner 工具请求规则 | `qq-chat-v2` persona 提示词（模型层） | 提示模型仅为桥接标记的 ownerQQ 请求使用工具；无调用期代码授权，不能阻止非 owner 诱导模型或模型忽略规则。 |
 | 预设 fail-closed | `resolvePresetName()` + `ensureSession()` | QQ 会话缺少其配置的 preset 时**拒绝建会话**，不回退到 DSH 默认 preset；避免 chat/reserved 意外获得工具，也避免 reserved2 静默加载不同权限面。 |
 | 文件与命令数据流 | DSH 会话 / 配置的 LLM provider / QQ 出站审计 | `reserved2` 调用本机工具产生的文件内容和命令输出会进入 DSH 上下文，并可能发送给配置的 LLM provider；发送回 QQ 仍经目标白名单和出站审计，但审计不是任意秘密检测器。 |
 | 发送强制白名单 | 所有 `/api/send/*`、`/api/socialV2/send-*` | 目标必须命中 `allow.groups` / `allow.private`（每次都重新校验，不做缓存） |
